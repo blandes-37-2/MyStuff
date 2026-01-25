@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - HSA Spending Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h1>HSA Spending Dashboard</h1>
+
+    {% if not is_configured %}
+    <div class="alert alert-warning">
+        <strong>Setup Required:</strong> Azure AD credentials not configured.
+        <a href="{{ url_for('main.settings') }}">Configure settings</a> to enable email sync.
+    </div>
+    {% endif %}
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Spent</h3>
+            <div class="stat-value">{{ "${:,.2f}".format(total_amount) }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Transactions</h3>
+            <div class="stat-value">{{ transaction_count }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Last Sync</h3>
+            <div class="stat-value">
+                {% if sync_status %}
+                    {{ sync_status.last_sync_date[:10] if sync_status.last_sync_date else 'Never' }}
+                {% else %}
+                    Never
+                {% endif %}
+            </div>
+        </div>
+        <div class="stat-card action-card">
+            <button onclick="window.location.href='{{ url_for('main.sync_page') }}'" class="btn btn-primary">
+                Sync Emails
+            </button>
+        </div>
+    </div>
+
+    <section class="recent-transactions">
+        <div class="section-header">
+            <h2>Recent Transactions</h2>
+            <a href="{{ url_for('main.transactions') }}" class="btn btn-secondary">View All</a>
+        </div>
+
+        {% if transactions %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Provider</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transactions %}
+                <tr>
+                    <td>{{ t.transaction_date[:10] if t.transaction_date else 'N/A' }}</td>
+                    <td>{{ t.provider or 'Unknown' }}</td>
+                    <td><span class="category-badge {{ t.category|lower if t.category else 'other' }}">{{ t.category or 'Other' }}</span></td>
+                    <td class="amount">{{ "${:,.2f}".format(t.amount) if t.amount else '$0.00' }}</td>
+                    <td>
+                        {% if t.is_verified %}<span class="status-badge verified">Verified</span>{% endif %}
+                        {% if t.is_reimbursed %}<span class="status-badge reimbursed">Reimbursed</span>{% endif %}
+                        {% if not t.is_verified and not t.is_reimbursed %}<span class="status-badge pending">Pending</span>{% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('main.transaction_detail', transaction_id=t.id) }}" class="btn btn-small">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <p>No transactions yet. Sync your emails to get started!</p>
+            <a href="{{ url_for('main.sync_page') }}" class="btn btn-primary">Sync Emails</a>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

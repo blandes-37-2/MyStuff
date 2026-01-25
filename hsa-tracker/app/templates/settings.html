@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - HSA Spending Tracker{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <h1>Settings</h1>
+
+    <section class="settings-section">
+        <h2>Azure AD Configuration</h2>
+        <div class="config-status">
+            {% if is_configured %}
+            <span class="status-badge verified">Configured</span>
+            {% else %}
+            <span class="status-badge pending">Not Configured</span>
+            {% endif %}
+        </div>
+
+        <div class="setup-instructions">
+            <h3>Setup Instructions</h3>
+            <p>To enable Outlook email sync, you need to register an app in Azure AD:</p>
+
+            <ol>
+                <li>
+                    <strong>Go to Azure AD Portal:</strong>
+                    <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">
+                        Azure App Registrations
+                    </a>
+                </li>
+                <li>
+                    <strong>Create a new registration:</strong>
+                    <ul>
+                        <li>Name: "HSA Tracker"</li>
+                        <li>Supported account types: "Personal Microsoft accounts only" (for personal Outlook)</li>
+                        <li>Redirect URI: Leave blank (we use device code flow)</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Configure API permissions:</strong>
+                    <ul>
+                        <li>Microsoft Graph > Delegated permissions</li>
+                        <li>Add: Mail.Read, User.Read</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Enable public client flows:</strong>
+                    <ul>
+                        <li>Go to Authentication</li>
+                        <li>Enable "Allow public client flows"</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Copy credentials:</strong>
+                    <ul>
+                        <li>Application (client) ID</li>
+                        <li>Directory (tenant) ID (use "consumers" for personal accounts)</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <h3>Environment Configuration</h3>
+            <p>Create a <code>.env</code> file in the hsa-tracker directory with:</p>
+            <pre class="code-block">
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=optional-for-public-client
+AZURE_TENANT_ID=consumers
+
+FLASK_SECRET_KEY=generate-a-random-key
+FLASK_DEBUG=True</pre>
+        </div>
+    </section>
+
+    <section class="settings-section">
+        <h2>Data Management</h2>
+        <div class="data-actions">
+            <button onclick="exportData()" class="btn btn-secondary">Export All Data (JSON)</button>
+            <button onclick="clearData()" class="btn btn-danger">Clear All Data</button>
+        </div>
+    </section>
+
+    <section class="settings-section">
+        <h2>About</h2>
+        <p><strong>HSA Spending Tracker</strong></p>
+        <p>Track your Health Savings Account expenses by automatically scanning your email for HSA-related receipts and documents.</p>
+        <p>Features:</p>
+        <ul>
+            <li>Automatic email scanning for HSA transactions</li>
+            <li>Document extraction and OCR for receipts</li>
+            <li>Spending categorization (Medical, Dental, Vision, Prescription)</li>
+            <li>Transaction verification and reimbursement tracking</li>
+        </ul>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function exportData() {
+        try {
+            const transactions = await apiCall('/api/transactions');
+            const stats = await apiCall('/api/stats');
+
+            const exportData = {
+                exported_at: new Date().toISOString(),
+                transactions: transactions,
+                stats: stats
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hsa-tracker-export-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('Error exporting data: ' + e.message);
+        }
+    }
+
+    async function clearData() {
+        if (!confirm('Are you sure you want to delete ALL transactions? This cannot be undone!')) {
+            return;
+        }
+        if (!confirm('This will permanently delete all your HSA transaction data. Continue?')) {
+            return;
+        }
+
+        try {
+            const transactions = await apiCall('/api/transactions');
+            for (const t of transactions) {
+                await apiCall(`/api/transactions/${t.id}`, 'DELETE');
+            }
+            alert('All data has been cleared.');
+            window.location.reload();
+        } catch (e) {
+            alert('Error clearing data: ' + e.message);
+        }
+    }
+</script>
+{% endblock %}
