@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction Details - HSA Spending Tracker{% endblock %}
+
+{% block content %}
+<div class="transaction-detail">
+    <div class="page-header">
+        <a href="{{ url_for('main.transactions') }}" class="btn btn-secondary">&larr; Back to Transactions</a>
+        <h1>Transaction Details</h1>
+    </div>
+
+    <div class="detail-grid">
+        <div class="detail-card main-info">
+            <h2>Transaction Information</h2>
+            <div class="detail-row">
+                <label>Amount:</label>
+                <span class="amount">{{ "${:,.2f}".format(transaction.amount) if transaction.amount else '$0.00' }}</span>
+            </div>
+            <div class="detail-row">
+                <label>Provider:</label>
+                <span>{{ transaction.provider or 'Unknown' }}</span>
+            </div>
+            <div class="detail-row">
+                <label>Category:</label>
+                <span class="category-badge {{ transaction.category|lower if transaction.category else 'other' }}">
+                    {{ transaction.category or 'Other' }}
+                </span>
+            </div>
+            <div class="detail-row">
+                <label>Transaction Date:</label>
+                <span>{{ transaction.transaction_date[:10] if transaction.transaction_date else 'N/A' }}</span>
+            </div>
+            <div class="detail-row">
+                <label>Service Date:</label>
+                <span>{{ transaction.service_date[:10] if transaction.service_date else 'N/A' }}</span>
+            </div>
+            <div class="detail-row">
+                <label>Description:</label>
+                <span>{{ transaction.description or '-' }}</span>
+            </div>
+            <div class="detail-row">
+                <label>Notes:</label>
+                <span>{{ transaction.notes or '-' }}</span>
+            </div>
+        </div>
+
+        <div class="detail-card status-info">
+            <h2>Status</h2>
+            <div class="status-toggles">
+                <label class="toggle-label">
+                    <input type="checkbox" id="verifiedToggle"
+                           {{ 'checked' if transaction.is_verified else '' }}
+                           onchange="updateStatus('is_verified', this.checked)">
+                    <span>Verified</span>
+                </label>
+                <label class="toggle-label">
+                    <input type="checkbox" id="reimbursedToggle"
+                           {{ 'checked' if transaction.is_reimbursed else '' }}
+                           onchange="updateStatus('is_reimbursed', this.checked)">
+                    <span>Reimbursed</span>
+                </label>
+            </div>
+            <div class="detail-row">
+                <label>Created:</label>
+                <span>{{ transaction.created_at[:16] if transaction.created_at else 'N/A' }}</span>
+            </div>
+        </div>
+
+        {% if transaction.email_subject %}
+        <div class="detail-card email-info">
+            <h2>Source Email</h2>
+            <div class="detail-row">
+                <label>Subject:</label>
+                <span>{{ transaction.email_subject }}</span>
+            </div>
+            <div class="detail-row">
+                <label>From:</label>
+                <span>{{ transaction.email_sender or 'Unknown' }}</span>
+            </div>
+            <div class="detail-row">
+                <label>Received:</label>
+                <span>{{ transaction.email_received_date[:16] if transaction.email_received_date else 'N/A' }}</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if transaction.attachments %}
+        <div class="detail-card attachments-info">
+            <h2>Attachments</h2>
+            <ul class="attachment-list">
+                {% for att in transaction.attachments %}
+                <li class="attachment-item">
+                    <span class="filename">{{ att.filename }}</span>
+                    <span class="file-meta">
+                        {{ att.file_type or 'Unknown type' }} |
+                        {{ (att.file_size / 1024)|round(1) if att.file_size else '?' }} KB
+                    </span>
+                    {% if att.extracted_amount %}
+                    <span class="extracted-amount">
+                        Extracted amount: {{ "${:,.2f}".format(att.extracted_amount) }}
+                    </span>
+                    {% endif %}
+                    {% if att.is_processed %}
+                    <span class="processed-badge">Processed</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="action-buttons">
+        <button onclick="editTransaction()" class="btn btn-primary">Edit</button>
+        <button onclick="deleteTransaction()" class="btn btn-danger">Delete</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const transactionId = {{ transaction.id }};
+
+    async function updateStatus(field, value) {
+        try {
+            const data = {};
+            data[field] = value;
+            await apiCall(`/api/transactions/${transactionId}`, 'PUT', data);
+        } catch (e) {
+            alert('Error updating status: ' + e.message);
+        }
+    }
+
+    async function deleteTransaction() {
+        if (!confirm('Are you sure you want to delete this transaction?')) return;
+
+        try {
+            const result = await apiCall(`/api/transactions/${transactionId}`, 'DELETE');
+            if (result.message) {
+                window.location.href = '{{ url_for("main.transactions") }}';
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error deleting transaction: ' + e.message);
+        }
+    }
+
+    function editTransaction() {
+        alert('Edit functionality coming soon!');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+# HSA Spending Tracker - Dependencies
+
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+
+# Microsoft Graph API for Outlook integration
+msal==1.26.0
+requests==2.31.0
+
+# Database
+sqlalchemy==2.0.25
+
+# Document Processing
+pypdf==3.17.4
+python-dateutil==2.8.2
+Pillow==10.2.0
+
+# OCR for receipt scanning (optional, requires tesseract installed)
+pytesseract==0.3.10
+
+# Environment management
+python-dotenv==1.0.0
+
+# Data processing
+pandas==2.1.4

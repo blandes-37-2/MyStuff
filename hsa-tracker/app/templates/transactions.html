@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions - HSA Spending Tracker{% endblock %}
+
+{% block content %}
+<div class="transactions-page">
+    <div class="page-header">
+        <h1>All Transactions</h1>
+        <button onclick="showAddModal()" class="btn btn-primary">Add Transaction</button>
+    </div>
+
+    <div class="filters">
+        <select id="categoryFilter" onchange="filterTransactions()">
+            <option value="">All Categories</option>
+            <option value="Medical">Medical</option>
+            <option value="Dental">Dental</option>
+            <option value="Vision">Vision</option>
+            <option value="Prescription">Prescription</option>
+            <option value="Other">Other</option>
+        </select>
+        <select id="statusFilter" onchange="filterTransactions()">
+            <option value="">All Status</option>
+            <option value="verified">Verified</option>
+            <option value="reimbursed">Reimbursed</option>
+            <option value="pending">Pending Review</option>
+        </select>
+    </div>
+
+    {% if transactions %}
+    <table class="data-table" id="transactionsTable">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Provider</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr data-category="{{ t.category or 'Other' }}"
+                data-verified="{{ 'true' if t.is_verified else 'false' }}"
+                data-reimbursed="{{ 'true' if t.is_reimbursed else 'false' }}">
+                <td>{{ t.transaction_date[:10] if t.transaction_date else t.created_at[:10] if t.created_at else 'N/A' }}</td>
+                <td>{{ t.provider or 'Unknown' }}</td>
+                <td class="description">{{ (t.description[:50] + '...') if t.description and t.description|length > 50 else t.description or '-' }}</td>
+                <td><span class="category-badge {{ t.category|lower if t.category else 'other' }}">{{ t.category or 'Other' }}</span></td>
+                <td class="amount">{{ "${:,.2f}".format(t.amount) if t.amount else '$0.00' }}</td>
+                <td>
+                    {% if t.is_verified %}<span class="status-badge verified">Verified</span>{% endif %}
+                    {% if t.is_reimbursed %}<span class="status-badge reimbursed">Reimbursed</span>{% endif %}
+                    {% if not t.is_verified and not t.is_reimbursed %}<span class="status-badge pending">Pending</span>{% endif %}
+                </td>
+                <td class="actions">
+                    <a href="{{ url_for('main.transaction_detail', transaction_id=t.id) }}" class="btn btn-small">View</a>
+                    <button onclick="deleteTransaction({{ t.id }})" class="btn btn-small btn-danger">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No transactions found.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Transaction Modal -->
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="hideAddModal()">&times;</span>
+        <h2>Add Transaction</h2>
+        <form id="addTransactionForm" onsubmit="addTransaction(event)">
+            <div class="form-group">
+                <label for="amount">Amount ($)</label>
+                <input type="number" id="amount" name="amount" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="provider">Provider</label>
+                <input type="text" id="provider" name="provider">
+            </div>
+            <div class="form-group">
+                <label for="category">Category</label>
+                <select id="category" name="category">
+                    <option value="Medical">Medical</option>
+                    <option value="Dental">Dental</option>
+                    <option value="Vision">Vision</option>
+                    <option value="Prescription">Prescription</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="transaction_date">Date</label>
+                <input type="date" id="transaction_date" name="transaction_date">
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Transaction</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showAddModal() {
+        document.getElementById('addModal').style.display = 'block';
+    }
+
+    function hideAddModal() {
+        document.getElementById('addModal').style.display = 'none';
+    }
+
+    async function addTransaction(event) {
+        event.preventDefault();
+        const form = event.target;
+        const data = {
+            amount: parseFloat(form.amount.value),
+            provider: form.provider.value,
+            category: form.category.value,
+            transaction_date: form.transaction_date.value || null,
+            description: form.description.value
+        };
+
+        try {
+            const result = await apiCall('/api/transactions', 'POST', data);
+            if (result.id) {
+                window.location.reload();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error adding transaction: ' + e.message);
+        }
+    }
+
+    async function deleteTransaction(id) {
+        if (!confirm('Are you sure you want to delete this transaction?')) return;
+
+        try {
+            const result = await apiCall(`/api/transactions/${id}`, 'DELETE');
+            if (result.message) {
+                window.location.reload();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error deleting transaction: ' + e.message);
+        }
+    }
+
+    function filterTransactions() {
+        const categoryFilter = document.getElementById('categoryFilter').value;
+        const statusFilter = document.getElementById('statusFilter').value;
+        const rows = document.querySelectorAll('#transactionsTable tbody tr');
+
+        rows.forEach(row => {
+            let show = true;
+
+            if (categoryFilter && row.dataset.category !== categoryFilter) {
+                show = false;
+            }
+
+            if (statusFilter) {
+                const isVerified = row.dataset.verified === 'true';
+                const isReimbursed = row.dataset.reimbursed === 'true';
+
+                if (statusFilter === 'verified' && !isVerified) show = false;
+                if (statusFilter === 'reimbursed' && !isReimbursed) show = false;
+                if (statusFilter === 'pending' && (isVerified || isReimbursed)) show = false;
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('addModal');
+        if (event.target === modal) {
+            hideAddModal();
+        }
+    }
+</script>
+{% endblock %}
